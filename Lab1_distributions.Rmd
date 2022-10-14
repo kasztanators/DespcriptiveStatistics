@@ -88,7 +88,7 @@ In the manufacture of car engine cylinders, it's known that there are 5 defectiv
 What is the probability that the sample contains 2 defective cylinders?
 
 ```{r ex3, echo=TRUE}
-
+dbinom(2, 6, 0.05)
 
 ```
 
