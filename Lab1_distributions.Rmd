@@ -97,7 +97,7 @@ dbinom(2, 6, 0.05)
 Now let's visualize:
 
 ```{r ex3_plot, echo=TRUE, fig.keep='all'}
-
+shadeDist(2, ddist ="dbinom", parm1=6, parm2 = 0.05)
 ```
 
 ## Exercise 4.(DIY)
