@@ -1,0 +1,33 @@
+library(resampledata)
+data(Beerwings)
+str(Beerwings)
+
+library(Publish)
+?ci.mean
+
+#use 99% confidence to estimate consumption of  hotwings and beer by gender 
+
+ci1 <- ci.mean(Hotwings~Gender, data = Beerwings, level= 0.99)
+
+ci1
+plot(ci1)
+
+library(interpretCI)
+x<- meanCI(Hotwings, x = Beerwings, alpha = 0.01)
+interpret(x)
+delta <-(ci1$upper-ci1$lower)/2 #delta
+delta
+
+#minimum sample size
+library(samplingbook)
+
+#how many female customers should we survey 
+#to estimate the mean beer consumption
+#with the 99 % CI length <= 1 beer
+S <- sd(Beerwings$Beer)
+delta <- 0.5
+
+population < - sample.size.mean(e = delta, S=S, level = 0.99)
+
+library(gplots)
+plotmeans(Beerwings~Gender, mean.labels = TRUE, digits =2, col="red", connect=FALSE)
