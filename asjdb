@@ -1,0 +1,39 @@
+library(resampledata)
+data(Beerwings)
+str(Beerwings)
+
+
+results <-t.test(Beer~Gender, data = Beerwings)
+results$conf.int
+
+##delta <- 0.5
+##S <- sd(Beerwings$Beer)
+#population < - sample.size.mean(e = delta, S=S, level = 0.99)
+#populat
+
+library(DescTools)
+mean.difftime(Beer~Gender, data = Beerwings)
+
+data(sleep)
+?sleep
+
+result <-t.test(extra~group, data = sleep, paired = TRUE)
+#dodalem abs interwal pomiedzy dwoma w którym miesci sie 95% 
+abs(result$conf.int)
+Gender <- c("men", "female")
+Answer <- c("Yes", "No")
+p <- matrix(c(123, 13, 31 ,89), nrow = 2, byrow = TRUE, dimnames = list(Gender, Answer))
+p
+
+##homework provide ggplot for this study nice nice 
+## library(propCIs)
+#diffprpci.mp()
+yes <- c(123,89)
+no <- c(154,102)
+
+result3 <- prop.test(yes,no)
+result3
+df <- data.frame(first_column, second_column)
+
+matrix
+result <- prp
