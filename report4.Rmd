@@ -1,0 +1,259 @@
+---
+title: "Statistical Inference"
+subtitle: "1 sample tests"
+author: "Your name here"
+date: Published on `r format(Sys.time(), "%A %d %B %Y")`
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggstatsplot)
+library(pwr)
+library(DescTools)
+library(TeachingDemos)
+library(dplyr)
+library(MKpower)
+library(report)
+```
+
+
+## Tests for 1 Mean
+
+
+### Exercise 1. Known variance, small sample.
+
+Assume that you would like to test whether proper amount of Cola is inside of Coca-Cola 500ml. bottles. For this purpose, you bought 10 cola bottles and measure the amount of cola inside of those cans. You are given information that standard deviation of the production lane is 10ml Would you say that mean value of amount of cola from your sample is 500 ml with (alpha=0.05) level of significance?
+
+Please notice that in this case we know what is the sigma for the population - it is a very rare case, almost theoretical. That's why we will use the so called Z-test/t-test with known variance here:
+
+
+```{r ex_1, echo = FALSE}
+
+sample_data<-c(490,495,511,505,500,499,485,480,515,508)
+
+mu <- 500
+var <- 100
+
+myttest <- function(a, mu, var){
+   t_test <- (mean(a) - mu) / (sqrt(var / length(a)))
+   return(t_test)
+} 
+
+t <- myttest(sample_data, mu, var)
+
+t
+pt(t, df=9)
+
+```
+
+### Exercise 2. Unknown variance, small sample.
+
+It is known that the average life time of Philips LEDs is 5000 hours. Your claim is that life time of Philips LEDs is less than 5000 hours. For this purpose, you bought 21 Philips LEDs and switch them on and observe the time when each of them stops working. Please test this claim with alpha = 0.05 level of significance.
+
+
+```{r ex_2, echo = FALSE}
+set.seed(5233)
+leds <- sample(seq(4500,5500,by=10),21)
+#left sided
+# check normality - histogram
+hist(leds)
+
+# check normality - qqplot
+qqnorm(leds)
+qqline(leds)
+
+# check normality - Shapiro Test, what to do if not normal?
+shapiro.test(leds) #null hypothesis: distribution is normal
+
+# t-test
+results<-t.test(leds, mu=5000, conf.level = 0.95,alternative = "less")
+results
+report(results)
+```
+
+What is the final conclusion here???
+
+Let's try to perform the power analysis.
+
+For 1-sample t-tests, use the following function:
+
+pwr.t.test(n = , d = , sig.level = , power = , type = c("two.sample", "one.sample", "paired"))
+
+d is the effect size (Cohen’s d) - difference between the means divided by the pooled
+standard deviation (observed-hypothetical).
+
+``` {r}
+std.deviation <- sd(leds)
+d <- (mean(leds)-5000)/std.deviation
+p<-pwr.t.test(n=21, d=d, sig.level=0.05,type="one.sample",alternative="less")
+plot(p)
+```
+Ok, we may see the really poor power of this test. 
+So what we need to change to increase the power significantly (i.e. 90%)?
+
+``` {r}
+p<-pwr.t.test(power=0.9, d=d, sig.level=0.05,type="one.sample",alternative="less")
+plot(p)
+```
+
+If you would like to have some impressive graphical summary of statistical tests - you may use the 'ggstatsplot' package. It is the whole collection of tests and plots. 
+
+See more here: https://indrajeetpatil.github.io/ggstatsplot/
+
+For 1 sample tests - only test for 1 mean is available here:
+
+``` {r}
+leds<-as.data.frame(leds) # must be a df object!
+# two sided pvalue 
+
+gghistostats(
+  data       = leds,
+  x          = leds,
+  title      = "Life time of Philips LEDs",
+  test.value = 5000,
+  type = "parametric",
+  conf.level=0.95
+)
+```
+
+Our p-value = 0.2739, ggstatsplot does not allow to use alternative="less"!!!
+
+### Nonparametric approach
+
+In case of small sample, unknown variance and quite skewed / not normal distribution of the variable (qqplots and Shapiro tests suggest rejection of normality) - we should use the less powerful substitute of t-tests: Wilcoxon Rank-based Test for 1 sample mean.
+
+``` {r}
+# t-test
+t.test(leds, mu=5000, conf.level = 0.95,alternative = "less")
+# Wilcoxon test
+wilcox.test(leds$leds,alternative="less",mu=5000,conf.level=0.95,exact=FALSE)
+```
+As you can see in our case both tests give the same results (our distribution of "leds" was close to normal, that's why).
+
+``` {r}
+leds<-as.data.frame(leds) # must be a df object!
+
+gghistostats(
+  data       = leds,
+  x          = leds,
+  title      = "Life time of Philips LEDs",
+  test.value = 5000,
+  type = "nonparametric",
+  conf.level=0.95
+)
+```
+
+Our p-value = 0.2831, ggstatsplot does not allow to use alternative="less"!!!
+
+
+### Your turn
+
+The dataset contains data of a pizza delivery service in London, delivering pizzas to three areas. Every record defines one order/delivery and the according properties. A pizza is supposed to taste good, if its temperature is high enough, say 45 Celsius. So it might be interesting for the pizza delivery service to minimize the delivery time.
+
+Please verify if the mean delivery time for medium quality pizzas is significantly lower than 25 minutes. Assume 0.01 level of significance. Check if the power of this test is satisfactory.
+
+``` {r}
+data(d.pizza)
+help(d.pizza)
+d <- d.pizza %>%
+  na.omit() %>%
+  filter(quality=="medium")
+shapiro.test(d$delivery_min)
+results<-t.test(d$delivery_min, mu=25, conf.level = 0.99,alternative = "less")
+#we cant use t test because it is  not normal distribution use wilkson test
+results
+report(results)
+###########
+res <- wilcox.test(d$delivery_min,alternative="less",mu=25,conf.level=0.95,exact=FALSE)
+report(res)
+##########
+p <- pwr.t.test(power= 0.9 , d= d$delivery_min, sig.level = 0.01, type = "one.sample", alternative = "less")
+plot(p)
+```
+
+
+
+
+
+
+## Tests for 1 Variance and SD
+
+1-sample variance and SD tests are not so popular. There is no built-in base-R function for that. We will use TeachingDemos packages with sigma.test for 1 SD.
+
+``` {r}
+?sigma.test
+students<-c(12,15,4,9,6,7,11,10,13,10)
+sd(students)
+sigma.test(students,sigma=3,alternative="less",conf.level=0.99)
+```
+
+
+## Tests for 1 Proportion
+
+
+### Exercise 3.
+
+In case of large samples (np>5) we may use Z-tests for testing 1 proportions, but there is no built-in function for that (we may write our own...).
+
+An auditor for the Online Service wants to examine its special two-hour priority order delivery to determine the proportion of the orders that actually arrive within the promised two-hour period. A randomly selected sample of 1500 such orders is found to contain 1150 that were delivered on time. 
+
+Does the sample data provide evidence to conclude that the percentage of on-time orders is more than 75%? Test at 5% level of significance.
+
+
+``` {r}
+prop.test(1150,1500,0.75,alternative='greater',conf.level=0.95)
+```
+
+
+If the sample is just too small (np<5) please use the original binomial distribution instead:
+
+``` {r}
+binom.test(1150,1500,p=0.75,alternative="greater",0.95)
+```
+For 1 proportion tests there is a power function available:
+
+pwr.p.test(h = NULL, n = NULL, sig.level = 0.05, power = NULL,
+    alternative = c("two.sided","less","greater"))
+    
+These calculations use arcsine transformation of the proportion (see Cohen (1988))
+
+Exactly one of the parameters 'h','n','power' and 'sig.level' must be passed as NULL, and that parameter is determined from the others. Notice that the last one has non-NULL default so NULL must be explicitly passed if you want to compute it. 
+
+``` {r}
+h<-ES.h(1150/1500,0.75) #Compute effect size h for two proportions
+h
+p<-pwr.p.test(h=h,n=1500,sig.level=0.05,alternative="greater")
+plot(p)
+```
+
+How many orders we should control to increase the power to 90%?
+
+``` {r}
+p<-pwr.p.test(h=h,power=0.9,sig.level=0.05,alternative="greater")
+plot(p)
+```
+
+
+### Your turn
+
+The dataset contains data of a pizza delivery service in London, delivering pizzas to three areas. Every record defines one order/delivery and the according properties. A pizza is supposed to taste good, if its temperature is high enough, say 45 Celsius. So it might be interesting for the pizza delivery service to minimize the delivery time.
+
+Please test the claim if the proportion of the high quality pizzas (when delivered) is significantly different from 0.5. Assume significance level = 0.05.  
+
+``` {r}
+data(d.pizza)
+help(d.pizza)
+d.pizza %>%
+ group_by(quality)%>%
+  summarize(counts = n()) 
+```
+
+Please write down your conclusions here.
+Perform the power analysis for this test and provide a sample size for a power = 90% if not achieved here.
+
+
+
