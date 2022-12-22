@@ -1,0 +1,262 @@
+---
+title: "Statistical Inference"
+subtitle: "Repeated Measures Anova"
+author: "Your name here"
+date: Published on `r format(Sys.time(), "%A %d %B %Y")`
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+## Global options
+knitr::opts_chunk$set(cache = TRUE)
+library(tidyverse)
+library(ggpubr)
+library(datarium)
+library(rstatix)
+```
+
+## Introduction
+
+The repeated measures ANOVA makes the following assumptions about the data:
+
+-   **No significant outliers** in any cell of the design. This can be checked by visualizing the data using box plot methods and by using the function `identify_outliers()` [rstatix package].
+
+-   **Normality**: the outcome (or dependent) variable should be approximately normally distributed in each cell of the design. This can be checked using the **Shapiro-Wilk normality test** (`shapiro_test()` [rstatix]) or by visual inspection using **QQ plot** (`ggqqplot()` [ggpubr package]).
+
+-   **Assumption of sphericity**: the variance of the differences between groups should be equal. This can be checked using the **Mauchly's test of sphericity**, which is automatically reported when using the R function `anova_test()` [rstatix package].
+
+Note that, [**if the above assumptions are not met**]{.ul} there are a non-parametric alternative (*Friedman test*) to the one-way repeated measures ANOVA!
+
+Unfortunately, there are no non-parametric alternatives to the two-way and the three-way repeated measures ANOVA. Thus, in the situation where the assumptions are not met, you could consider running the two-way/three-way repeated measures ANOVA on the transformed and non-transformed data to see if there are any meaningful differences.
+
+If both tests lead you to the same conclusions, you might not choose to transform the outcome variable and carry on with the two-way/three-way repeated measures ANOVA on the original data.
+
+It's also possible to perform robust ANOVA test using the **WRS2** R package.
+
+No matter your choice, you should report what you did in your results.
+
+## RM Anova in R
+
+Key R functions:
+
+-   `anova_test()` [rstatix package], a wrapper around `car::Anova()` for making easy the computation of repeated measures ANOVA. Key arguments for performing repeated measures ANOVA:
+
+    -   `data`: data frame
+
+    -   `dv`: (numeric) the dependent (or outcome) variable name.
+
+    -   `wid`: variable name specifying the case/sample identifier.
+
+    -   `within`: within-subjects factor or grouping variable
+
+-   `get_anova_table()` [rstatix package]. Extracts the ANOVA table from the output of `anova_test()`. It returns ANOVA table that is automatically corrected for eventual deviation from the sphericity assumption. The default is to apply automatically the Greenhouse-Geisser sphericity correction to only within-subject factors violating the sphericity assumption (i.e., Mauchly's test p-value is significant, p \<= 0.05).
+
+## 1-way RM Anova
+
+The dataset "***selfesteem***" contains 10 individuals' self-esteem score on three time points during a specific diet to determine whether their self-esteem improved.
+
+```{r}
+data("selfesteem", package = "datarium")
+head(selfesteem, 3)
+
+```
+
+The one-way repeated measures ANOVA can be used to determine whether the means self-esteem scores are significantly different between the three time points. So let's convert this data frame into long format:
+
+```{r}
+selfesteem <- selfesteem %>%
+  gather(key = "time", value = "score", t1, t2, t3) %>%
+  convert_as_factor(id, time)
+head(selfesteem, 3)
+```
+
+### Descriptive statistics
+
+```{r}
+selfesteem %>%
+  group_by(time) %>%
+  get_summary_stats(score, type = "mean_sd")
+```
+```{r}
+bxp<- ggboxplot(selfesteem, y="score", x="time") 
+bxp
+```
+
+
+### Assumptions
+
+
+```{r}
+selfesteem %>%
+  group_by(time) %>%
+  identify_outliers(score)
+```
+```{r}
+selfesteem %>%
+  group_by(time) %>%
+  shapiro_test(score)
+```
+```{r message=FALSE, warning=FALSE}
+ggqqplot(selfesteem, "score") +
+  facet_grid(~time)
+```
+
+sphericity test error
+
+```{r}
+
+
+```
+### Anova
+```{r}
+results <- anova_test(data = selfesteem,
+           dv= score,
+           wid= id,
+           within = time)
+
+```
+
+
+
+### Post-hoc tests
+
+```{r}
+
+
+pwc <- selfesteem %>%
+  emmeans_test(score ~time, p.adjust.method = "bonferroni")
+pwc
+```
+```{r}
+pwc <- pwc %>% add_xy_position(x="time")
+bxp + 
+  stat_pvalue_manual(pwc) +
+  labs(
+    subtitle=get_test_label(results,detailed=TRUE),
+    caption=get_pwc_label(pwc)
+  )
+
+```
+
+### Conclusions
+
+Hence, we can conclude that the score was statistically significantly different during different times, with the result with F(2,18) = 55.5 and p = 0.0000000201. From the post-hoc tests, when pairwise comparisons were conducted we can state that all the differences between pairs are statistically significant.
+
+
+
+## 2-way RM Anova
+
+For Two-Way Repeated Measures ANOVA, "Two-way" means that there are two factors in the experiment, for example, different treatments and different conditions. "Repeated-measures" means that the same subject received more than one treatment and/or more than one condition. Similar to two-way ANOVA, two-way repeated measures ANOVA can be employed to test for significant differences between the factor level means within a factor and for interactions between factors.
+
+Using a standard ANOVA in this case [is not appropriate]{.ul} because it fails to model the correlation between the repeated measures, and the data violates the ANOVA assumption of independence. Two-Way Repeated Measures ANOVA designs can be two repeated measures factors, or one repeated measures factor and one non-repeated factor. If any repeated factor is present, then the repeated measures ANOVA should be used.
+
+Please apply Two-way RM-ANOVA to analyze if any of interactions are significant (*between time and music, time and image, music and image, or music and time and image*)! The response variable is level of stress experienced by a person watching one of 2 movie genres. Interpret your results. Use the following data set:
+
+```{r}
+set.seed(5250)
+myData <- data.frame(PID = rep(seq(from = 1,
+                               to = 60, by = 1), 20),
+                     stress = sample(x = 1:100,
+                                     size = 1200,
+                                     replace = TRUE),
+                     image = sample(c("Happy", "Angry"),
+                                    size = 1200,
+                                    replace = TRUE),
+                     music = sample(c("Disney", "Horror"),
+                                    size = 1200,
+                                    replace = TRUE)
+)
+myData <- within(myData, {
+  PID   <- factor(PID)
+  image <- factor(image)
+  music <- factor(music)
+})
+myData <- myData[order(myData$PID), ]
+head(myData)
+```
+
+```{r}
+
+head(myData, 60)
+
+```
+
+The one-way repeated measures ANOVA can be used to determine whether the means self-esteem scores are significantly different between the three time points. So let's convert this data frame into long format:
+
+```{r}
+selfesteem <- selfesteem %>%
+  gather(key = "time", value = "score", t1, t2, t3) %>%
+  convert_as_factor(id, time)
+head(selfesteem, 3)
+```
+
+### Descriptive statistics
+
+```{r}
+selfesteem %>%
+  group_by(time) %>%
+  get_summary_stats(score, type = "mean_sd")
+```
+```{r}
+bxp<- ggboxplot(selfesteem, y="score", x="time") 
+bxp
+```
+
+
+### Assumptions
+
+
+```{r}
+selfesteem %>%
+  group_by(time) %>%
+  identify_outliers(score)
+```
+```{r}
+selfesteem %>%
+  group_by(time) %>%
+  shapiro_test(score)
+```
+```{r message=FALSE, warning=FALSE}
+ggqqplot(selfesteem, "score") +
+  facet_grid(~time)
+```
+
+sphericity test error
+
+```{r}
+
+
+```
+### Anova
+```{r}
+results <- anova_test(data = selfesteem,
+           dv= score,
+           wid= id,
+           within = time)
+
+```
+
+
+
+### Post-hoc tests
+
+```{r}
+
+
+pwc <- selfesteem %>%
+  emmeans_test(score ~time, p.adjust.method = "bonferroni")
+pwc
+```
+```{r}
+pwc <- pwc %>% add_xy_position(x="time")
+bxp + 
+  stat_pvalue_manual(pwc) +
+  labs(
+    subtitle=get_test_label(results,detailed=TRUE),
+    caption=get_pwc_label(pwc)
+  )
+
+```
