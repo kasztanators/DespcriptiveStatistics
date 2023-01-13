@@ -1,0 +1,251 @@
+---
+title: "Statistical Inference"
+subtitle: "Ancova"
+author: "Your name here"
+date: Published on `r format(Sys.time(), "%A %d %B %Y")`
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+## Global options
+knitr::opts_chunk$set(cache = TRUE)
+download.file("https://github.com/kflisikowski/ms/blob/main/diet.csv?raw=true", destfile ="diet.csv",mode="wb")
+diet <- read.csv("diet.csv")
+library(rstatix)
+library(dplyr)
+library(car)
+library(pwr)
+library(ggpubr)
+library(dlookr)
+```
+
+## Weight Lost
+
+Research Question: We want to investigate if the weightlost is different according to the Diet and the Gender.
+
+We need to create the variable weight lost because this is the continuous variable that we want to compare between Diets and Genders:
+
+```{r}
+diet$weightlost<-diet$weight6weeks-diet$pre.weight
+```
+
+It would be nice to start without any outliers and NA's. Let's solve this problem with the "dlookr" package:
+
+```{r message=FALSE, warning=FALSE}
+diet$weightlost<-diet %>%
+  group_by(Diet, gender) %>%
+  imputate_outlier(xvar=weightlost,method="median",no_attrs=TRUE)
+
+diet$gender<-imputate_na(diet,xvar=gender,yvar=Diet,method="mode")
+```
+
+We need to rearrange the categorical variables "Diet" and "gender" so that we Can read their real values: 0 -\> "Female" and 1 -\> "Male". It is always advised to transform your categorical variables so that we can see their meaning later on when you plot graphs. It is indeed nicer to have a graph indicating that such gender is "Male" rather than just a number 1...
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+diet$gender<-factor(diet$gender,labels=c("Female","Male"),exclude=NA)
+diet$Diet<-factor(diet$Diet, labels=c("Diet 1","Diet 2", "Diet 3"), exclude=NA)
+attach(diet)
+```
+
+Do not forget to attach the data so that it is simpler to call the variables and not using "data set + \$ + variable".
+
+
+```{r}
+ggboxplot(diet, x="gender", y="weightlost", facet.by="Diet")
+```
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data=diet, mapping=aes(x=Age, y=weightlost)) +
+  geom_point() +
+  geom_smooth(method=lm) +
+  facet_wrap(~gender+Diet)
+```
+
+
+
+## Assumptions
+
+Assumptions:
+
+1)  No significant outliers for each combination of the groups of the two independent variables.
+
+```{r}
+diet %>%
+  group_by(gender, Diet) %>%
+  identify_outliers(weightlost)
+```
+
+2)  Dependent variable of the ANOVA should be approximately normally distributed for each combination of groups.
+
+```{r}
+diet %>% 
+  group_by(gender, Diet) %>%
+  shapiro_test(weightlost)
+```
+
+Normality plots:
+
+```{r}
+ggplot(data=diet, mapping=aes(sample=weightlost)) +
+  stat_qq_line(distribution=stats::qnorm) +
+  stat_qq(distribution=stats::qnorm) +
+  facet_wrap(~gender+Diet)
+```
+
+In this combination (Female in Diet 1&3), the data looks skewed. But since in all the other combinations, there is a symmetrical distribution and the ANOVA is considered as a robust test, you can still go for the 2-way ANOVA.
+
+3)  Homogeneity of Variances for each combination of groups.
+
+```{r}
+car::leveneTest(weightlost~gender*Diet)
+```
+
+P-value > 0.05, so we keep Homogeneity of Variance (or do not reject it) and we can go on.
+
+## 2-way Anova
+
+```{r}
+results2way<-aov(weightlost~gender*Diet)
+summary(results2way)
+```
+
+-   Strange! There is no significant difference of weight lost between Genders.
+
+-   There is a strong significant difference between the Diets.
+
+-   There is a significant interaction effect.
+
+So in the end, Gender is to be taken into account because there is an interaction effect!
+
+```{r}
+interaction.plot(Diet,gender,weightlost)
+#interaction between variables when pararel no intereaction
+```
+Typical case of interaction: The lines are not parallel = Interaction!
+
+Post-hoc tests:
+
+```{r}
+TukeyHSD(results2way)
+```
+
+## 1-way Ancova DIY
+
+A one-way ANCOVA is similar to a one-way ANOVA. However by comparing a measurement scale between 3 or more groups, we control for another continuous variable, called the covariate.
+
+This covariate is a variable that you think might affect the results we obtained in the one-way ANOVA.
+
+There can be several covariates.
+
+Research question: Is there a significant difference of weight lost between the types of Diet while controlling for the height of the participants?
+
+Assumptions:
+
+1)  No significant outliers for each category (Diet).
+
+```{r}
+diet %>% 
+  group_by(gender, Diet) %>%
+   identify_outliers(Age)
+```
+
+2)  Dependent variable of the ANOVA should be approximately normally distributed for each category (Diet).
+
+```{r}
+ggplot(data=diet, mapping=aes(sample=Age)) +
+  stat_qq_line(distribution=stats::qnorm) +
+  stat_qq(distribution=stats::qnorm) +
+  facet_wrap(~gender+Diet)
+```
+
+3)  Homogeneity of Variances: Variances statistically similar between different Diets.
+
+```{r}
+car::leveneTest(Age~gender*Diet)
+```
+
+1-way Ancova test:
+
+```{r}
+results<- aov(weightlost~ Diet+Age)
+summary(results)
+```
+
+Conclusions:
+Diet is siginfucant 
+
+
+
+In order to conduct ANCOVA post-hoc tests (that is pairwise comparisons while controlling for covariate 'Height'), type the same function TukeyHSD and specify the independent variable 'Diet'. 
+
+Post-hoc tests: 
+
+```{r}
+
+```
+
+## 2-way Ancova DIY
+
+Research question: Is there a significant difference of weight lost between the types of Diet and the Gender while controlling for the height of the participants?
+
+Pretty much similar to the 2-way ANCOVA but you will add an extra independent factor “Gender”.
+
+"+" to add the covariate(s) "\*" when it is an independent factor added to Diet.
+
+```{r}
+results<- aov(weightlost~ Diet*gender+Height)
+summary(results)
+```
+
+## Mixed Anova DIY
+
+-   Research question: Is there a significant difference of lost weight between the types of Diet and the Gender while controlling for the height and the age of the participants?
+
+-   The between-subjects factor is Diet.
+
+-   The within-subjects factor is Time ("pre" and "after 6 weeks")
+
+Unfortunately, the format the data is presented is not ready for analysing a Repeated ANOVA!
+
+There are two fundamental verbs of data tidying:
+
+-   gather() takes multiple columns, and gathers them into key-value pairs: it makes "wide" data longer.
+
+-   spread() takes two columns (key & value) and spreads in to multiple columns, it makes "long" data wider.
+
+```{r}
+
+```
+
+Ok, now we are ready to use the "anova_test" function, which is very convenient ("rstatix" library). Remember, now we are considering both, within and between-group factors.
+
+```{r}
+
+```
+
+## Power Analysis
+
+The power of a test statistics is to be taken as a score from 0 to 100%. It measures the reliability of your test.
+
+The power depends on the sample size and the bigger your sample size, the more power you will have, and thus the more reliable your test is.
+
+The power required in statistics is usually 80%.
+
+In the functions provided in this course, you need to specify the p-value threshold (0.05 generally) and a parameter called the effect size.
+
+After that, you can either specify the sample size you have in order to get the power, or conversely, specify the power in order to know what minimum sample size you need.
+
+What to do in case the sample size is not enough?
+
+-   Try to collect more data.
+
+-   Report the effect sizes.
+
+-   Report some descriptive statistics.
+
+-   You can increase the p-value threshold to 0.10. I.e. You will have a significant result if the p-value is less than 0.10.
+
+There exist power and sample size calculations for more complicated studies such as two way ANOVA or mixed ANOVA in R. For this you should download and install the package "pwr2" and read its documentation online.
